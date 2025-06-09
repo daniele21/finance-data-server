@@ -1,0 +1,19 @@
+# .gcloudignore
+
+# Python virtual environment
+venv/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Local database file (we want each Cloud Run instance to create its own)
+ticker_data.db
+
+# Git files
+.git
+.gitignore
+
+# Docker files
+
+key
