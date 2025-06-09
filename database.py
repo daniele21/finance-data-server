@@ -9,15 +9,33 @@ def init_db():
     """Initializes the database and creates the 'tickers' table if it doesn't exist."""
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
-    # Create table to store ticker data
-    # - ticker: The stock symbol (e.g., 'AAPL')
-    # - data: The fetched data, stored as a JSON string
-    # - last_updated: The timestamp when the data was last fetched
+    # Table for cached ticker data
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS tickers (
             ticker TEXT PRIMARY KEY,
             data TEXT NOT NULL,
             last_updated TIMESTAMP NOT NULL
+        )
+    ''')
+
+    # Table for portfolios
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS portfolios (
+            name TEXT PRIMARY KEY
+        )
+    ''')
+
+    # Table for transactions
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            portfolio TEXT NOT NULL,
+            ticker TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            price REAL NOT NULL,
+            date TEXT NOT NULL,
+            label TEXT,
+            FOREIGN KEY(portfolio) REFERENCES portfolios(name)
         )
     ''')
     conn.commit()
@@ -68,3 +86,62 @@ def save_ticker_data(ticker_symbol, data):
 
     conn.commit()
     conn.close()
+
+
+def create_portfolio(name):
+    """Create a portfolio if it doesn't already exist."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT OR IGNORE INTO portfolios (name) VALUES (?)",
+        (name,)
+    )
+    conn.commit()
+    conn.close()
+
+
+def save_transactions(portfolio, transactions):
+    """Save a list of transactions for a portfolio."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    for t in transactions:
+        cursor.execute(
+            """
+            INSERT INTO transactions (portfolio, ticker, quantity, price, date, label)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                portfolio,
+                t.get("ticker"),
+                t.get("quantity"),
+                t.get("price"),
+                t.get("date"),
+                t.get("label"),
+            ),
+        )
+    conn.commit()
+    conn.close()
+
+
+def get_transactions(portfolio):
+    """Retrieve all transactions for a portfolio."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT ticker, quantity, price, date, label FROM transactions WHERE portfolio = ? ORDER BY date",
+        (portfolio,),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def aggregate_positions(transactions):
+    """Return a dict of ticker -> total quantity."""
+    positions = {}
+    for t in transactions:
+        qty = float(t.get("quantity", 0))
+        ticker = t.get("ticker")
+        positions[ticker] = positions.get(ticker, 0) + qty
+    return positions
