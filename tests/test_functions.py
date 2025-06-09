@@ -8,21 +8,26 @@ import pandas as pd
 
 # Provide fake google.generativeai before importing gemini_helper
 fake_genai = types.ModuleType('google.generativeai')
+
+
 class DummyModel:
     def generate_content(self, data):
         return types.SimpleNamespace(text='[{"ticker":"AAPL","quantity":1,"price":2,"date":"2020-01-01","label":""}]')
 
+
 def dummy_configure(api_key=None):
     pass
+
+
 fake_genai.GenerativeModel = lambda name: DummyModel()
 fake_genai.configure = dummy_configure
 sys.modules['google.generativeai'] = fake_genai
-os.environ['GEMINI_API_KEY'] = 'key'
 
 import database
 import data_fetcher
 import gemini_helper
 import portfolio
+
 
 class DatabaseTestCase(unittest.TestCase):
     def setUp(self):
@@ -56,6 +61,7 @@ class DatabaseTestCase(unittest.TestCase):
         pos = database.aggregate_positions(loaded)
         self.assertEqual(pos, {'AAA': 1.0})
 
+
 class DataFetcherTestCase(unittest.TestCase):
     def setUp(self):
         class DummyTicker:
@@ -70,8 +76,10 @@ class DataFetcherTestCase(unittest.TestCase):
                 self.actions.index.name = 'Date'
                 self.dividends = pd.DataFrame({0: [0.1]}, index=pd.to_datetime(['2020-01-01']))
                 self.recommendations = pd.DataFrame({'To Grade': ['Buy']}, index=pd.to_datetime(['2020-01-01']))
+
             def history(self, period='1y'):
                 return self._history
+
         self.ticker_patch = mock.patch('yfinance.Ticker', DummyTicker)
         self.ticker_patch.start()
         self.tmp = tempfile.NamedTemporaryFile(delete=False)
@@ -90,27 +98,28 @@ class DataFetcherTestCase(unittest.TestCase):
 
     def test_fetch_with_cache(self):
         now = pd.Timestamp.now().to_pydatetime()
-        with mock.patch('database.get_ticker_data', return_value=({'x':1}, now)):
+        with mock.patch('database.get_ticker_data', return_value=({'x': 1}, now)):
             data, src = data_fetcher.fetch_with_cache('AAA')
             self.assertEqual(src, 'CACHE')
-            self.assertEqual(data, {'x':1})
+            self.assertEqual(data, {'x': 1})
         with mock.patch('database.get_ticker_data', return_value=(None, None)), \
-             mock.patch('data_fetcher.fetch_from_yfinance', return_value={'y':2}) as fetch_mock, \
-             mock.patch('database.save_ticker_data') as save_mock:
+                mock.patch('data_fetcher.fetch_from_yfinance', return_value={'y': 2}) as fetch_mock, \
+                mock.patch('database.save_ticker_data') as save_mock:
             data, src = data_fetcher.fetch_with_cache('BBB')
             fetch_mock.assert_called_once()
             save_mock.assert_called_once()
             self.assertEqual(src, 'YAHOO_FINANCE_API')
-            self.assertEqual(data, {'y':2})
+            self.assertEqual(data, {'y': 2})
+
 
 class GeminiHelperTestCase(unittest.TestCase):
     def test_get_model_and_parse(self):
-        os.environ['GEMINI_API_KEY'] = 'key'
         model = gemini_helper.get_model()
         self.assertTrue(hasattr(model, 'generate_content'))
         parsed = gemini_helper.parse_transactions('text')
         self.assertIsInstance(parsed, list)
         self.assertEqual(parsed[0]['ticker'], 'AAPL')
+
 
 class PortfolioTestCase(unittest.TestCase):
     def setUp(self):
@@ -130,15 +139,17 @@ class PortfolioTestCase(unittest.TestCase):
     def test_portfolio_status_and_performance(self):
         def fake_fetch(ticker, cache_duration=mock.ANY):
             hist = [
-                {'Date': '2020-01-01', 'Close': 1 if ticker=='AAA' else 2},
-                {'Date': '2020-01-02', 'Close': 1.1 if ticker=='AAA' else 2.1},
+                {'Date': '2020-01-01', 'Close': 1 if ticker == 'AAA' else 2},
+                {'Date': '2020-01-02', 'Close': 1.1 if ticker == 'AAA' else 2.1},
             ]
             return {'info': {'regularMarketPrice': 5}, 'history': hist}, 'CACHE'
+
         with mock.patch('data_fetcher.fetch_with_cache', side_effect=fake_fetch):
             status = portfolio.get_portfolio_status('p1')
             self.assertEqual(len(status['holdings']), 2)
             perf = portfolio.get_performance('p1')
             self.assertTrue(len(perf) > 0)
+
 
 if __name__ == '__main__':
     unittest.main()
