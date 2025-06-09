@@ -5,7 +5,7 @@ import sys
 
 import gemini_helper
 
-# @unittest.skipUnless(os.getenv("RUN_GEMINI_TEST"), "Set RUN_GEMINI_TEST=1 to enable")
+@unittest.skipUnless(os.getenv("RUN_GEMINI_TEST"), "Set RUN_GEMINI_TEST=1 to enable")
 class GeminiRealCallTestCase(unittest.TestCase):
     def setUp(self):
         os.environ.setdefault("GEMINI_MODEL", "gemini-1.5-flash")
