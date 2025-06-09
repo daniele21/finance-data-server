@@ -1,41 +1,112 @@
 # Finance Data Server
 
-This small Flask application exposes an API to fetch stock data using [yfinance](https://github.com/ranaroussi/yfinance). Requests to `/api/ticker/<symbol>` return cached data about the requested ticker. The fetched data now includes:
+This Flask application exposes a small set of APIs for retrieving stock data and tracking simple portfolios. Data is fetched using [yfinance](https://github.com/ranaroussi/yfinance) and cached locally so repeated requests do not always hit Yahoo Finance.
 
-- `info` – basic company information
-- `history` – one year of daily price history
-- `events.actions` – dividends and stock split events
-- `events.dividends` – dividend payments
-- `events.recommendations` – analyst recommendation history
+## Running the Server
 
-The server caches responses in a local SQLite database for 24 hours to limit calls to Yahoo Finance.
-The helper ``fetch_with_cache`` in ``data_fetcher.py`` encapsulates this logic and returns cached data when available.
+Install the dependencies and start the app:
 
-Portfolio calculations also reuse this cached ticker history so repeated requests do not refetch large datasets.
+```bash
+pip install -r requirements.txt
+python app.py
+```
 
-## Portfolio Management
+The app reads a few environment variables:
 
-Additional endpoints provide simple portfolio tracking. A Gemini API key is read
-from the ``GEMINI_API_KEY`` environment variable to allow transaction text to be
-parsed via Google Gemini.  The model used can be overridden by setting
-``GEMINI_MODEL`` (default ``gemini-pro``).
+- `GOOGLE_CLIENT_ID` – OAuth client id used to verify Google ID tokens passed by the frontend.
+- `GEMINI_API_KEY` – required for parsing raw transaction text via Google Gemini.
+- `GEMINI_MODEL` – optional model name for Gemini (defaults to `gemini-pro`).
 
-- ``POST /api/transactions/<portfolio>`` – Accepts either ``{"raw": "..."}`` or
-  ``{"transactions": [...]}``. Raw text is sent to Gemini to extract
-  standardized transactions, which are then stored in the database.
-- ``GET /api/portfolio/<portfolio>/status`` – Returns current holdings with the
-  latest market price for each asset.
-- ``GET /api/portfolio/<portfolio>/performance`` – Calculates a simple time
-  series of portfolio value based on daily closing prices.
+## Authentication
+
+All endpoints require a valid Google ID token provided in the `Authorization` header:
+
+```
+Authorization: Bearer <YOUR_GOOGLE_ID_TOKEN>
+```
+
+Requests without a token or with an invalid one will receive `401` responses.
+
+## Endpoints
+
+### `GET /api/ticker/<symbol>`
+Returns cached data about a ticker. Example response:
+
+```json
+{
+  "source": "CACHE",
+  "ticker": "AAPL",
+  "data": {
+    "info": {
+      "shortName": "Apple Inc.",
+      "regularMarketPrice": 189.5
+    },
+    "history": [
+      {"Date": "2024-01-02", "Close": 180.5},
+      ...
+    ],
+    "events": {
+      "actions": [...],
+      "dividends": [...],
+      "recommendations": [...]
+    }
+  }
+}
+```
+
+### `POST /api/transactions/<portfolio>`
+Store transactions for a portfolio. The body can include either raw text or a list of transactions:
+
+```json
+{
+  "raw": "Bought 1 share of AAPL at $100 on 2024-01-01"
+}
+```
+
+or
+
+```json
+{
+  "transactions": [
+    {"ticker": "AAPL", "quantity": 1, "price": 100, "date": "2024-01-01", "label": "buy"}
+  ]
+}
+```
+
+The endpoint returns:
+
+```json
+{"status": "saved", "count": 1}
+```
+
+### `GET /api/portfolio/<portfolio>/status`
+Returns current holdings with the latest price and value per asset:
+
+```json
+{
+  "holdings": [
+    {"ticker": "AAPL", "quantity": 1.0, "price": 189.5, "value": 189.5}
+  ],
+  "total_value": 189.5
+}
+```
+
+### `GET /api/portfolio/<portfolio>/performance`
+Provides a simple time series of the portfolio value using daily closing prices:
+
+```json
+[
+  {"date": "2024-01-01", "value": 180.5},
+  {"date": "2024-01-02", "value": 181.0}
+]
+```
 
 ## Testing
 
-Unit tests can be run with:
+Run the unit tests with:
 
-```
+```bash
 python -m unittest discover -s tests -v
 ```
 
-The optional integration test ``tests/test_gemini_integration.py`` makes a real
-call to Gemini. Set ``GEMINI_API_KEY`` and optionally ``GEMINI_MODEL`` to enable
-this test.
+The optional integration test `tests/test_gemini_integration.py` makes a real call to Gemini. Set `GEMINI_API_KEY` and optionally `GEMINI_MODEL` to enable this test.
