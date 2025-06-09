@@ -1,32 +1,35 @@
 import os
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 API_KEY = os.getenv("GEMINI_API_KEY")
-# Allow selecting a custom model via environment variable. Defaults to the
-# standard Gemini Pro model.  The integration tests set this to the Flash model.
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-pro")
+if not API_KEY:
+    raise RuntimeError("GEMINI_API_KEY not set")
 
-def get_model():
-    if not API_KEY:
-        raise RuntimeError("GEMINI_API_KEY environment variable not set")
-    genai.configure(api_key=API_KEY)
-    model = genai.GenerativeModel(MODEL_NAME)
-    return model
+# Initialize the client (developer API mode)
+client = genai.Client(api_key=API_KEY, vertexai=False)
 
 def parse_transactions(raw_text):
-    """Use Gemini to parse raw transaction text into structured JSON."""
-    model = get_model()
     prompt = (
         "Extract all transactions from the text below. "
-        "Return a JSON list where each item has fields: ticker, quantity, "
-        "price, date (YYYY-MM-DD), label, and portfolio."
+        "Return directly just the VALID JSON list where each item has fields: "
+        "ticker, quantity, price, date (YYYY-MM-DD), label, and portfolio."
+        "DO NOT ADD ANYTHING ELSE"
     )
-    response = model.generate_content([prompt, raw_text])
-    try:
-        # Gemini returns text; we expect the JSON to be in a code block or plain
-        import json
-        cleaned = response.text.strip('`\n ')
-        return json.loads(cleaned)
-    except Exception as e:
-        raise RuntimeError(f"Failed to parse transactions: {e}")
+    # Build your config object instead of passing temperature directly
+    config = types.GenerateContentConfig(
+        temperature=0.0,         # for deterministic parsing
+        max_output_tokens=256    # enough room for the JSON
+    )
 
+    # Now pass it in via `config=`
+    response = client.models.generate_content(
+        model="gemini-2.0-flash-001",
+        contents=[prompt, raw_text],
+        config=config
+    )
+
+    # response.text holds the generated JSON string
+    import json
+    cleaned = response.text.strip("`\n ").replace('json', '')
+    return json.loads(cleaned)

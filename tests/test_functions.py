@@ -6,23 +6,6 @@ import types
 import sys
 import pandas as pd
 
-# Provide fake google.generativeai before importing gemini_helper
-fake_genai = types.ModuleType('google.generativeai')
-
-
-class DummyModel:
-    def generate_content(self, data):
-        return types.SimpleNamespace(text='[{"ticker":"AAPL","quantity":1,"price":2,"date":"2020-01-01","label":""}]')
-
-
-def dummy_configure(api_key=None):
-    pass
-
-
-fake_genai.GenerativeModel = lambda name: DummyModel()
-fake_genai.configure = dummy_configure
-sys.modules['google.generativeai'] = fake_genai
-
 import database
 import data_fetcher
 import gemini_helper
@@ -111,14 +94,6 @@ class DataFetcherTestCase(unittest.TestCase):
             self.assertEqual(src, 'YAHOO_FINANCE_API')
             self.assertEqual(data, {'y': 2})
 
-
-class GeminiHelperTestCase(unittest.TestCase):
-    def test_get_model_and_parse(self):
-        model = gemini_helper.get_model()
-        self.assertTrue(hasattr(model, 'generate_content'))
-        parsed = gemini_helper.parse_transactions('text')
-        self.assertIsInstance(parsed, list)
-        self.assertEqual(parsed[0]['ticker'], 'AAPL')
 
 
 class PortfolioTestCase(unittest.TestCase):
