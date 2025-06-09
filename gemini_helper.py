@@ -2,12 +2,15 @@ import os
 import google.generativeai as genai
 
 API_KEY = os.getenv("GEMINI_API_KEY")
+# Allow selecting a custom model via environment variable. Defaults to the
+# standard Gemini Pro model.  The integration tests set this to the Flash model.
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-pro")
 
 def get_model():
     if not API_KEY:
         raise RuntimeError("GEMINI_API_KEY environment variable not set")
     genai.configure(api_key=API_KEY)
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel(MODEL_NAME)
     return model
 
 def parse_transactions(raw_text):
