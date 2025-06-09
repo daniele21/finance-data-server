@@ -17,7 +17,8 @@ Portfolio calculations also reuse this cached ticker history so repeated request
 
 Additional endpoints provide simple portfolio tracking. A Gemini API key is read
 from the ``GEMINI_API_KEY`` environment variable to allow transaction text to be
-parsed via Google Gemini.
+parsed via Google Gemini.  The model used can be overridden by setting
+``GEMINI_MODEL`` (default ``gemini-pro``).
 
 - ``POST /api/transactions/<portfolio>`` – Accepts either ``{"raw": "..."}`` or
   ``{"transactions": [...]}``. Raw text is sent to Gemini to extract
@@ -26,3 +27,15 @@ parsed via Google Gemini.
   latest market price for each asset.
 - ``GET /api/portfolio/<portfolio>/performance`` – Calculates a simple time
   series of portfolio value based on daily closing prices.
+
+## Testing
+
+Unit tests can be run with:
+
+```
+python -m unittest discover -s tests -v
+```
+
+The optional integration test ``tests/test_gemini_integration.py`` makes a real
+call to Gemini. Set ``GEMINI_API_KEY`` and optionally ``GEMINI_MODEL`` to enable
+this test.
