@@ -5,43 +5,65 @@ from functools import wraps
 import data_fetcher
 import os
 from flask_cors import CORS
+from google.oauth2 import id_token
+from google.auth.transport import requests
 
 app = Flask(__name__)
 
 CORS(app, origins=[
     "http://localhost:8000",
     "http://localhost:8080",
-    "https://finance-data-server-335283962900.europe-west1.run.app"
+    "https://portfoliopilot-335283962900.us-west1.run.app"
 ], supports_credentials=True)
 
 # Ensure the database is set up before the server starts
 database.init_db()
 
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
+
+
+def require_google_token(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({"error": "Authorization header is missing"}), 401
+
+        parts = auth_header.split()
+        if parts[0].lower() != 'bearer' or len(parts) != 2:
+            return jsonify({"error": "Invalid Authorization header format. Must be 'Bearer <token>'"}), 401
+
+        token = parts[1]
+
+        if not GOOGLE_CLIENT_ID:
+            print("ERROR: GOOGLE_CLIENT_ID environment variable not set on the server.")
+            return jsonify({"error": "Server configuration error"}), 500
+
+        try:
+            # Verify the token against Google's public keys.
+            # This checks the signature, expiration, and that it was issued to your client ID.
+            id_info = id_token.verify_oauth2_token(token, requests.Request(), GOOGLE_CLIENT_ID)
+
+            # You can optionally store the user info from the token if needed
+            # request.user = id_info
+
+            print(f"Authenticated user: {id_info.get('email')}")
+
+        except ValueError as e:
+            # This catches invalid tokens (bad signature, expired, wrong audience, etc.)
+            print(f"Token validation failed: {e}")
+            return jsonify({"error": f"Invalid or expired token: {e}"}), 401
+
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
 # Define how old the data can be before we refresh it from the API
 CACHE_DURATION = timedelta(hours=24)
 
-
-# def require_api_key(f):
-#     @wraps(f)
-#     def decorated_function(*args, **kwargs):
-#         # Read the secret key from environment variables
-#         expected_api_key = os.environ.get('API_KEY')
-#
-#         # Ensure the environment variable is set
-#         if not expected_api_key:
-#             return jsonify({"error": "API key not configured on server"}), 500
-#
-#         # Get the API key from the request header
-#         provided_key = request.headers.get('X-API-Key')
-#         if not provided_key or provided_key != expected_api_key:
-#             return jsonify({"error": "Unauthorized"}), 401
-#
-#         return f(*args, **kwargs)
-#
-#     return decorated_function
-
-# @require_api_key
 @app.route('/api/ticker/<string:ticker_symbol>', methods=['GET'])
+@require_google_token
 def get_ticker(ticker_symbol):
     """
     API endpoint to get ticker data.
