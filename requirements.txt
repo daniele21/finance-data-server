@@ -3,3 +3,4 @@ gunicorn
 yfinance
 Flask
 Flask-Cors
+google-generativeai==0.3.2
