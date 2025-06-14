@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request
+import logging
 from datetime import datetime, timedelta
 import database
 from functools import wraps
@@ -12,11 +13,20 @@ from google.auth.transport import requests
 
 app = Flask(__name__)
 
+# Configure basic logging to stdout
+logging.basicConfig(level=logging.INFO)
+
 CORS(app, origins=[
     "http://localhost:8000",
     "http://localhost:8080",
     "https://portfoliopilot-335283962900.us-west1.run.app"
 ], supports_credentials=True)
+
+
+@app.before_request
+def log_api_call():
+    """Log each incoming API request."""
+    app.logger.info("%s %s", request.method, request.path)
 
 # Ensure the database is set up before the server starts
 database.init_db()
