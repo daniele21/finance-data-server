@@ -10,6 +10,7 @@ import database
 import data_fetcher
 import gemini_helper
 import portfolio
+import app
 
 
 class DatabaseTestCase(unittest.TestCase):
@@ -124,6 +125,35 @@ class PortfolioTestCase(unittest.TestCase):
             self.assertEqual(len(status['holdings']), 2)
             perf = portfolio.get_performance('p1')
             self.assertTrue(len(perf) > 0)
+
+
+class ApiTestCase(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.NamedTemporaryFile(delete=False)
+        database.DATABASE_NAME = self.tmp.name
+        database.init_db()
+        app.app.config['TESTING'] = True
+        self.client = app.app.test_client()
+
+    def tearDown(self):
+        os.unlink(self.tmp.name)
+
+    def test_standardize_and_save(self):
+        txs = [{
+            'ticker': 'AAA',
+            'quantity': 1,
+            'price': 10,
+            'date': '2020-01-01',
+            'label': '',
+            'portfolio': 'p1'
+        }]
+        with mock.patch('gemini_helper.parse_transactions', return_value=txs):
+            resp = self.client.post('/api/transactions/standardize-and-save', json={'raw': 'text'})
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data['count'], 1)
+            saved = database.get_transactions('p1')
+            self.assertEqual(len(saved), 1)
 
 
 if __name__ == '__main__':
