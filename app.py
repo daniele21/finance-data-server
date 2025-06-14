@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request
+import logging
 from datetime import datetime, timedelta
 import database
 from functools import wraps
@@ -12,11 +13,34 @@ from google.auth.transport import requests
 
 app = Flask(__name__)
 
+# Configure basic logging to stdout
+logging.basicConfig(level=logging.INFO)
+
 CORS(app, origins=[
     "http://localhost:8000",
     "http://localhost:8080",
     "https://portfoliopilot-335283962900.us-west1.run.app"
 ], supports_credentials=True)
+
+
+@app.before_request
+def log_api_call():
+    """Log each incoming API request."""
+    app.logger.info("%s %s", request.method, request.path)
+
+
+@app.after_request
+def log_errors(response):
+    """Log details of any error responses."""
+    if response.status_code >= 400:
+        app.logger.error(
+            "%s %s -> %s %s",
+            request.method,
+            request.path,
+            response.status_code,
+            response.get_data(as_text=True),
+        )
+    return response
 
 # Ensure the database is set up before the server starts
 database.init_db()
@@ -125,6 +149,30 @@ def add_transactions(portfolio_name):
     database.create_portfolio(portfolio_name)
     database.save_transactions(portfolio_name, transactions)
     return jsonify({'status': 'saved', 'count': len(transactions)})
+
+
+@app.route('/api/transactions/standardize-and-save', methods=['POST'])
+def standardize_and_save():
+    data = request.get_json(force=True)
+    raw = data.get('raw')
+    if not raw:
+        return jsonify({'error': 'No raw text provided'}), 400
+    try:
+        transactions = gemini_helper.parse_transactions(raw)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    if not transactions:
+        return jsonify({'error': 'No transactions found'}), 400
+    by_portfolio = {}
+    for t in transactions:
+        name = t.get('portfolio')
+        if not name:
+            return jsonify({'error': 'Portfolio missing in transaction'}), 400
+        by_portfolio.setdefault(name, []).append(t)
+    for name, txs in by_portfolio.items():
+        database.create_portfolio(name)
+        database.save_transactions(name, txs)
+    return jsonify({'status': 'saved', 'count': len(transactions), 'transactions': transactions})
 
 
 @app.route('/api/portfolio/<string:portfolio_name>/status', methods=['GET'])

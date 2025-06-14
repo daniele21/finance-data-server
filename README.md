@@ -79,6 +79,29 @@ The endpoint returns:
 {"status": "saved", "count": 1}
 ```
 
+### `POST /api/transactions/standardize-and-save`
+Parse a block of text describing transactions. Any referenced portfolios are
+created automatically and the transactions are stored. The response includes the
+standardized transactions.
+
+```json
+{
+  "raw": "Bought 1 share of AAPL at $100 for portfolio p1"
+}
+```
+
+Returns:
+
+```json
+{
+  "status": "saved",
+  "count": 1,
+  "transactions": [
+    {"ticker": "AAPL", "quantity": 1, "price": 100, "date": "2024-01-01", "label": "buy", "portfolio": "p1"}
+  ]
+}
+```
+
 ### `GET /api/portfolio/<portfolio>/status`
 Returns current holdings with the latest price and value per asset:
 
