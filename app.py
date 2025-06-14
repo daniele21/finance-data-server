@@ -107,6 +107,30 @@ def add_transactions(portfolio_name):
     return jsonify({'status': 'saved', 'count': len(transactions)})
 
 
+@app.route('/api/transactions/standardize-and-save', methods=['POST'])
+def standardize_and_save():
+    data = request.get_json(force=True)
+    raw = data.get('raw')
+    if not raw:
+        return jsonify({'error': 'No raw text provided'}), 400
+    try:
+        transactions = gemini_helper.parse_transactions(raw)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    if not transactions:
+        return jsonify({'error': 'No transactions found'}), 400
+    by_portfolio = {}
+    for t in transactions:
+        name = t.get('portfolio')
+        if not name:
+            return jsonify({'error': 'Portfolio missing in transaction'}), 400
+        by_portfolio.setdefault(name, []).append(t)
+    for name, txs in by_portfolio.items():
+        database.create_portfolio(name)
+        database.save_transactions(name, txs)
+    return jsonify({'status': 'saved', 'count': len(transactions), 'transactions': transactions})
+
+
 @app.route('/api/portfolio/<string:portfolio_name>/status', methods=['GET'])
 def portfolio_status(portfolio_name):
     status = portfolio.get_portfolio_status(portfolio_name)
