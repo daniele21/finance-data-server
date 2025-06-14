@@ -65,26 +65,6 @@ def require_google_token(f):
 CACHE_DURATION = timedelta(hours=24)
 
 
-# def require_api_key(f):
-#     @wraps(f)
-#     def decorated_function(*args, **kwargs):
-#         # Read the secret key from environment variables
-#         expected_api_key = os.environ.get('API_KEY')
-#
-#         # Ensure the environment variable is set
-#         if not expected_api_key:
-#             return jsonify({"error": "API key not configured on server"}), 500
-#
-#         # Get the API key from the request header
-#         provided_key = request.headers.get('X-API-Key')
-#         if not provided_key or provided_key != expected_api_key:
-#             return jsonify({"error": "Unauthorized"}), 401
-#
-#         return f(*args, **kwargs)
-#
-#     return decorated_function
-
-# @require_api_key
 @app.route('/api/ticker/<string:ticker_symbol>', methods=['GET'])
 @require_google_token
 def get_ticker(ticker_symbol):
